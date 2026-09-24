@@ -1,0 +1,5 @@
+# http://localhost:3000/api/search?q=white%20wedding%20dress
+
+# http://localhost:3000/api/db-test
+
+GET http://localhost:3000/api/trends
