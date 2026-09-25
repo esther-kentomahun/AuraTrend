@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   creators,
@@ -16,21 +16,49 @@ const TABS = [
   { id: "hashtags", label: "Hashtags" },
 ];
 
-function TopBar({ query, setQuery }) {
+function TopBar({ query }) {
   const navigate = useNavigate();
+  const [searchValue, setSearchValue] = useState(query);
+
+  useEffect(() => {
+    setSearchValue(query);
+  }, [query]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+
+    const trimmedQuery = searchValue.trim();
+
+    if (!trimmedQuery) {
+      navigate("/results");
+      return;
+    }
+
+    navigate(`/results?q=${encodeURIComponent(trimmedQuery)}`);
+  };
+
+  const clearSearch = () => {
+    setSearchValue("");
+    navigate("/results");
+  };
+
   return (
     <header className="sticky top-0 z-20 bg-cream-100/85 backdrop-blur-md border-b border-cream-300">
       <div className="px-6 sm:px-10 lg:px-16 h-16 flex items-center gap-6">
         <Link to="/" className="flex items-center gap-2 shrink-0">
           <div className="h-7 w-7 rounded-full bg-burgundy-500 flex items-center justify-center">
-            <span className="font-serif text-cream-50 text-sm italic">A</span>
+            <span className="font-serif text-cream-50 text-sm italic">
+              A
+            </span>
           </div>
+
           <span className="font-serif text-lg text-ink-900 hidden sm:block">
             AuraTrend
           </span>
         </Link>
+
         <form
-          onSubmit={(e) => e.preventDefault()}
+          onSubmit={handleSearch}
           className="flex-1 max-w-2xl"
         >
           <div className="flex items-center gap-2 bg-cream-50 border border-cream-300 rounded-full px-4 py-2 focus-within:border-burgundy-400 transition-colors">
@@ -42,18 +70,23 @@ function TopBar({ query, setQuery }) {
               viewBox="0 0 24 24"
             >
               <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" strokeLinecap="round" />
+              <path
+                d="m21 21-4.3-4.3"
+                strokeLinecap="round"
+              />
             </svg>
+
             <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
               placeholder="Search styles, creators, hashtags…"
               className="flex-1 bg-transparent outline-none text-sm text-ink-900 placeholder:text-sand-500"
             />
-            {query && (
+
+            {searchValue && (
               <button
                 type="button"
-                onClick={() => setQuery("")}
+                onClick={clearSearch}
                 className="text-sand-500 hover:text-ink-900 text-xs"
               >
                 Clear
@@ -61,6 +94,7 @@ function TopBar({ query, setQuery }) {
             )}
           </div>
         </form>
+
         <button
           onClick={() => navigate("/")}
           className="text-sm text-sand-600 hover:text-burgundy-500 hidden sm:block"
@@ -102,24 +136,35 @@ function PostCard({ post }) {
   );
 }
 
-function PostsSection({ query }) {
-  const filtered = useMemo(() => {
-    if (!query) return posts;
-    return posts.filter((p) =>
-      matchesQuery(
-        `${p.caption} ${p.creator.name} ${p.creator.handle} ${p.hashtags.join(" ")}`,
-        query
-      )
-    );
-  }, [query]);
-
-  if (filtered.length === 0) {
-    return <Empty label="No posts match your search." />;
+function PostsSection({ results, loading, error }) {
+  if (loading) {
+    return <Empty label="Finding fashion trends..." />;
   }
+
+  if (error) {
+    return <Empty label={error} />;
+  }
+
+  if (results.length === 0) {
+    return <Empty label="No fashion trends found." />;
+  }
+
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-      {filtered.map((p) => (
-        <PostCard key={p.id} post={p} />
+      {results.map((post) => (
+     <PostCard
+  key={post.id}
+  post={{
+    ...post,
+  image: post.imageUrl || post.image_url,
+trendScore: post.engagementScore || post.engagement_score,
+creator: {
+  name: post.creatorHandle || post.creator_handle,
+  handle: post.creatorHandle || post.creator_handle,
+
+    },
+  }}
+/>
       ))}
     </div>
   );
@@ -161,9 +206,7 @@ function StylesSection({ query }) {
 function CreatorsSection({ query }) {
   const filtered = useMemo(() => {
     if (!query) return creators;
-    return creators.filter((c) =>
-      matchesQuery(`${c.name} ${c.handle}`, query)
-    );
+    return creators.filter((c) => matchesQuery(`${c.name} ${c.handle}`, query));
   }, [query]);
 
   if (filtered.length === 0) return <Empty label="No creators match." />;
@@ -186,14 +229,17 @@ function CreatorsSection({ query }) {
             </p>
             <p className="text-xs text-sand-600 truncate">{c.handle}</p>
             <p className="text-xs text-sand-500 mt-1">
-              {formatCount(c.followers)} followers · {formatCount(c.posts)} posts
+              {formatCount(c.followers)} followers · {formatCount(c.posts)}{" "}
+              posts
             </p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs uppercase tracking-wider text-sand-500">
               Trend
             </p>
-            <p className="font-serif text-2xl text-burgundy-500">{c.trendScore}</p>
+            <p className="font-serif text-2xl text-burgundy-500">
+              {c.trendScore}
+            </p>
           </div>
         </div>
       ))}
@@ -229,7 +275,11 @@ function HashtagsSection({ query }) {
               strokeWidth="2.5"
               viewBox="0 0 24 24"
             >
-              <path d="m6 15 6-6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="m6 15 6-6 6 6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             <span className="text-sm font-medium">+{h.delta}%</span>
           </div>
@@ -240,19 +290,60 @@ function HashtagsSection({ query }) {
 }
 
 function Empty({ label }) {
-  return (
-    <div className="py-20 text-center text-sand-500 text-sm">{label}</div>
-  );
+  return <div className="py-20 text-center text-sand-500 text-sm">{label}</div>;
 }
 
-export default function ResultsPage() {
+
+ export default function ResultsPage() {
   const [params] = useSearchParams();
   const [tab, setTab] = useState("posts");
-  const [query, setQuery] = useState(params.get("q") || "");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const query = params.get("q") || "";
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+
+    const fetchResults = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await fetch(
+          `https://auratrend.onrender.com/api/search?q=${encodeURIComponent(
+            query.trim()
+          )}`
+        );
+
+        const data = await response.json();
+
+        console.log("API response:", data);
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Failed to fetch results");
+        }
+
+        setResults(data.data || []);
+      } catch (error) {
+        console.error("Search error:", error);
+        setResults([]);
+        setError("Unable to fetch fashion trends.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResults();
+  }, [query]);
 
   return (
     <div className="min-h-screen">
-      <TopBar query={query} setQuery={setQuery} />
+      <TopBar query={query} />
 
       <div className="px-6 sm:px-10 lg:px-16 pt-8 max-w-7xl mx-auto">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
@@ -260,11 +351,14 @@ export default function ResultsPage() {
             <p className="text-burgundy-500 text-xs tracking-[0.3em] uppercase mb-2">
               Results
             </p>
+
             <h1 className="font-serif text-3xl sm:text-4xl text-ink-900">
               {query ? (
                 <>
                   Trends for{" "}
-                  <span className="italic text-burgundy-500">“{query}”</span>
+                  <span className="italic text-burgundy-500">
+                    “{query}”
+                  </span>
                 </>
               ) : (
                 "What's rising this cycle"
@@ -285,6 +379,7 @@ export default function ResultsPage() {
               }`}
             >
               {t.label}
+
               {tab === t.id && (
                 <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-burgundy-500 rounded-full" />
               )}
@@ -293,12 +388,23 @@ export default function ResultsPage() {
         </nav>
 
         <section className="pb-24">
-          {tab === "posts" && <PostsSection query={query} />}
+          {tab === "posts" && (
+            <PostsSection
+              results={results}
+              loading={loading}
+              error={error}
+            />
+          )}
+
           {tab === "styles" && <StylesSection query={query} />}
+
           {tab === "creators" && <CreatorsSection query={query} />}
+
           {tab === "hashtags" && <HashtagsSection query={query} />}
         </section>
       </div>
     </div>
   );
 }
+
+
